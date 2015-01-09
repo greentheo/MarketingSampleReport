@@ -1,0 +1,241 @@
+---
+title: "Sample Marketing Report"
+runtime: shiny
+output: html_document
+---
+
+
+## (Company Name Here) Uplift and Campaign Report
+
+### Global Performance
+
+The following lists performence by global control groups and experimental groups. 
+
+```{r, echo=FALSE}
+library(dplyr,quietly = T)
+library(shiny,quietly = T)
+library(lubridate,quietly = T)
+library(ggplot2,quietly = T)
+
+inputPanel(
+  sliderInput('numUserSegments',label = 'Number of User Segments', min = 1, max = 10, value = 5),
+  sliderInput('numOffers',label = 'Number of Offers Trialed', min = 1, max = 10, value = 3),
+  dateInput('dateStart', label = 'Date Start',value = Sys.Date()-15),
+  dateInput('dateStop', label='Date End', value=Sys.Date())
+  )
+data = reactive({
+  #days = ymd(seq(from=Sys.Date()-15, to=Sys.Date(), by="1 day"))
+  days = seq(from=input$dateStart, to=input$dateStop, by="1 day")
+  
+  data = data.frame(segment=1, offer=1, day=days[1], performance=rexp(1), group="na") 
+  perfmeans = runif(input$numOffers, min = 0.1, max = .5)
+  for(g in c("control","experiment")){
+    for(i in 1:input$numUserSegments){
+      for(j in 1:input$numOffers){
+        data = rbind(data, data.frame(segment=i, offer=j, day=days, performance=rexp(length(days), perfmeans[j]), group=g))
+      }
+    }
+  }
+
+  return(data[-1,])
+})
+
+
+renderDataTable({
+   dataCtl = subset(data(), group=="control") %.%
+    group_by(group) %.%
+    summarize(performance=sum(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = data() %.%
+    group_by(group) %.%
+    summarize(performance=sum(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    mutate(percentUplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2),
+           significant=ifelse(dataCtl$confHigh>confLow, "No", "Yes"))
+  
+  return(dataOpt)
+})
+
+renderPlot({
+  dataCtl = subset(data(), group=="control") %.%
+    group_by(day) %.%
+    summarize(performance=sum(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = subset(data(), group=="experiment") %.%
+    group_by(day) %.%
+    summarize(performance=sum(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    mutate(uplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2)
+           )
+  
+    ggplot(dataOpt, aes(x=day, y=uplift))+geom_line()+
+    geom_hline(yintercept=0)+
+    labs(title="Uplift by Day", y="%Uplift")
+  
+})
+
+```
+
+### Performance by Offer
+
+The following table and charts list performance by Offer (across all experimental segments).
+
+
+```{r echo=FALSE}
+renderDataTable({
+   dataCtl = subset(data(), group=="control") %.%
+    group_by(group) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = subset(data(), group="experiment") %.%
+    group_by(offer) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    mutate(percentUplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2),
+           significant=ifelse(dataCtl$confHigh>confLow, "No", "Yes"))
+  
+  return(dataOpt)
+})
+
+renderPlot({
+  dataCtl = subset(data(), group=="control") %.%
+    group_by(day) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = subset(data(), group=="experiment") %.%
+    group_by(offer, day) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    group_by(offer) %.%
+    mutate(uplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2)
+           )
+  
+    ggplot(dataOpt, aes(x=day, y=uplift, color=as.factor(offer)))+geom_line()+
+    geom_hline(yintercept=0)+
+    labs(title="Uplift by Day by Offer", y="%Uplift")
+  
+})
+
+```
+
+
+### Performance by Segment
+
+The following table and charts list performance by Offer (across all experimental segments).
+
+```{r echo=FALSE}
+renderDataTable({
+   dataCtl = subset(data(), group=="control") %.%
+    group_by(group) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = subset(data(), group="experiment") %.%
+    group_by(segment) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    mutate(percentUplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2),
+           significant=ifelse(dataCtl$confHigh>confLow, "No", "Yes"))
+  
+  return(dataOpt)
+})
+
+renderPlot({
+  dataCtl = subset(data(), group=="control") %.%
+    group_by(day) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = subset(data(), group=="experiment") %.%
+    group_by(segment, day) %.%
+    summarize(performance=sum(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    group_by(segment) %.%
+    mutate(uplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2)
+           )
+  
+    ggplot(dataOpt, aes(x=day, y=uplift, color=as.factor(segment)))+geom_line()+
+    geom_hline(yintercept=0)+
+    labs(title="Uplift by Day by Segment", y="%Uplift")
+  
+})
+
+```
+
+
+
+
+### Peformance by User Segment-Offer Pairs
+
+```{r echo=FALSE}
+renderDataTable({
+   dataCtl = subset(data(), group=="control") %.%
+    group_by(group) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = subset(data(), group="experiment") %.%
+    group_by(offer, segment) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    mutate(percentUplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2),
+           significant=ifelse(runif(input$numUserSegments)<.5, "No", "Yes"))
+  
+  return(dataOpt)
+})
+
+renderPlot({
+  dataCtl = subset(data(), group=="control") %.%
+    group_by(day) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95))
+  
+  dataOpt = subset(data(), group=="experiment") %.%
+    group_by(offer, segment, day) %.%
+    summarize(performance=mean(performance),
+              confLow=quantile(performance, .05),
+              confHigh=quantile(performance, .95)) %.%
+    group_by(offer, segment) %.%
+    mutate(uplift=round((performance-dataCtl$performance) / dataCtl$performance *100, digits=2)
+           )
+  
+  dataOpt[["segOffer"]] = paste(dataOpt$segment, dataOpt$offer, sep="")
+    ggplot(dataOpt, aes(x=day, y=uplift, color=as.factor(segOffer)))+geom_line()+
+    geom_hline(yintercept=0)+
+    labs(title="Uplift by Day", y="%Uplift")
+  
+})
+
+```
+
+
+
+## Segment and Offer Composition
+
+Here we list what the segments are composed of for a deeper dive into why the segment may or may not be working.
+
+We also list what each of the offers is for the same reason:  figuring out why the offer may or may not be working.
+
+## Conclusions and Analysis
+
+Here is some custom explanatory text and some supplimental figures.  This explanatory text will point out what's going well with the campaigns and what isn't.  
+
