@@ -12,10 +12,14 @@ output: html_document
 The following lists performence by global control groups and experimental groups. 
 
 ```{r, echo=FALSE}
-library(dplyr,quietly = T)
-library(shiny,quietly = T)
-library(lubridate,quietly = T)
-library(ggplot2,quietly = T)
+library(dplyr,quietly = T,warn.conflicts = F)
+library(shiny,quietly = T,warn.conflicts = F)
+library(lubridate,quietly = T,warn.conflicts = F)
+library(ggplot2,quietly = T,warn.conflicts = F)
+
+```
+
+```{r echo=FALSE}
 
 inputPanel(
   sliderInput('numUserSegments',label = 'Number of User Segments', min = 1, max = 10, value = 5),
